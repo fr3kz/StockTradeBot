@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using StockTradeBot.Api.Interfaces;
@@ -28,10 +29,15 @@ namespace StockTradeBot.Api
                 options.SerializerOptions.IncludeFields = true;
                 
             });
+            
+            builder.WebHost.ConfigureKestrel(serverOptions =>
+            {
+                serverOptions.ListenLocalhost(5105); 
+            });
 
             builder.Services.AddControllersWithViews().AddRazorOptions(options =>
             {
-                options.ViewLocationFormats.Add("/Api/Views/{1}/{0}.cshtml"); // Jeśli masz niestandardową lokalizację
+                options.ViewLocationFormats.Add("/Api/Views/{1}/{0}.cshtml"); 
             });  
                 
             builder.Services.AddRazorPages();

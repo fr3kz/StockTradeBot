@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
@@ -18,12 +19,31 @@ public class Program
         Task.Run(() => ShowStrategy());
         Task.Run(() => ShowBackTesting());
         Task.Run((() => StartApi()));
+        //Task.Run((() => StartWeb()));
         var (app,appTaskResult) = appTask.Result;
         
 
         app.Run();
     }
 
+    private static void StartWeb()
+    {
+        string stockTradeBotProjectFolder = Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory()).FullName, "../StockTradeBot");
+        
+        // Ścieżka do pliku .csproj (w projekcie StockTradeBot)
+        string projectFilePath = Path.Combine(stockTradeBotProjectFolder, "StockTradeBot.csproj");
+
+        // Uruchomienie procesu dotnet, wskazując projekt StockTradeBot
+        ProcessStartInfo startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet", 
+            Arguments = $"run --project \"{projectFilePath}\"", 
+            WorkingDirectory = stockTradeBotProjectFolder // Ustawienie katalogu roboczego na folder projektu
+        };
+
+        // Uruchomienie procesu
+        Process.Start(startInfo);
+    }
     private static void ShowStrategy()
     {
         
