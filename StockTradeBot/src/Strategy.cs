@@ -11,7 +11,7 @@ public class Strategy : IStrategy
     public Strategy(HttpClient client)
     {
         _client = client;
-        client.BaseAddress = new Uri("http://localhost:5000/");
+        client.BaseAddress = new Uri("http://localhost:5105/");
     }
 
     public Strategy() : this(new HttpClient())
@@ -72,6 +72,7 @@ public class Strategy : IStrategy
                     entries.Add(current);
                     
                     Trade trade = new Trade();
+                    //trade.Guid = Guid.NewGuid();
                     trade.EntryPrice = current.HighPrice;
                     trade.StopLoss = current.HighPrice *0.98m;
                     trade.TakeProfit = current.HighPrice * 1.02m;

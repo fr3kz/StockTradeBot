@@ -1,6 +1,8 @@
 namespace StockTradeBot.Models;
 public class Trade
 {
+    
+    public Guid Guid { get; set; }
     public decimal EntryPrice { get; set; }
     public decimal ExitPrice { get; set; }
     public decimal StopLoss { get; set; }

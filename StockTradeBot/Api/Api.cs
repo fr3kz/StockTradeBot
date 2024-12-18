@@ -13,9 +13,7 @@ namespace StockTradeBot.Api
     public  class ApiStartup: IApi
     {
         //private string _connectionString = "Data Source=app.db;";
-        private static string databasePath = Path.Combine(
-            Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory)?.Parent?.Parent?.FullName ?? string.Empty,
-            "app.db");
+        private static string databasePath =   Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory()).FullName, "app.db");
         private string _connectionString = $"Data Source={databasePath};";
         
 
@@ -61,7 +59,8 @@ namespace StockTradeBot.Api
                 Size DECIMAL(18, 2),
                 PositionValue DECIMAL(18, 2),
                 RiskAmount DECIMAL(18, 2),
-                RewardAmount DECIMAL(18, 2)
+                RewardAmount DECIMAL(18, 2),
+                Guid TEXT NOT NULL
             );
         ";
 
@@ -95,7 +94,7 @@ namespace StockTradeBot.Api
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
-                    command.CommandText = "SELECT EntryPrice, ExitPrice, StopLoss, TakeProfit, EntryTime, ExitTime, Profit, ProfitPercentage, IsWin, Size, RiskAmount, RewardAmount FROM Trades";
+                    command.CommandText = "SELECT EntryPrice, ExitPrice, StopLoss, TakeProfit, EntryTime, ExitTime, Profit, ProfitPercentage, IsWin, Size, RiskAmount, RewardAmount,Guid FROM Trades";
 
                     using (var reader = command.ExecuteReader())
                     {
@@ -114,7 +113,8 @@ namespace StockTradeBot.Api
                                 IsWin = reader.GetBoolean(8),
                                 Size = reader.GetDecimal(9),
                                 RiskAmount = reader.GetDecimal(10),
-                                RewardAmount = reader.GetDecimal(11)
+                                RewardAmount = reader.GetDecimal(11),
+                                Guid = reader.GetGuid(12)
                             };
 
                             trades.Add(trade);
@@ -122,14 +122,24 @@ namespace StockTradeBot.Api
                     }
                 }
 
-                //TERAZ trzeba serializowac te dane
+               
                 return Results.Json(trades);
                 
                 
             });
 
             // historia wszystkich tradow
-            app.MapGet("/trades/history", () => "Hello, World!");
+            app.MapGet("/trades/history", () =>
+            {
+                Strategy strategy = new Strategy();
+                var data = strategy.LoadData();
+                var longs = strategy.CalculatePosition(true, data); 
+                var backtest = new BackTest(data,longs);
+                
+                // potrzebuje stalych z sl i tp
+                var results = backtest.RunBacktest(0.02m, 0.04m);
+                return Results.Json(results);
+            });
 
             // dodanie trade
             app.MapPost("/trades/add", async (Trade trade) =>
@@ -146,9 +156,9 @@ namespace StockTradeBot.Api
                 var command = connection.CreateCommand();
                 command.CommandText = @"
         INSERT INTO Trades 
-        (EntryPrice, ExitPrice, StopLoss, TakeProfit, EntryTime, ExitTime, Profit, ProfitPercentage, IsWin, Size, RiskAmount, RewardAmount) 
+        (EntryPrice, ExitPrice, StopLoss, TakeProfit, EntryTime, ExitTime, Profit, ProfitPercentage, IsWin, Size, RiskAmount, RewardAmount,Guid) 
         VALUES 
-        ($EntryPrice, $ExitPrice, $StopLoss, $TakeProfit, $EntryTime, $ExitTime, $Profit, $ProfitPercentage, $IsWin, $Size, $RiskAmount, $RewardAmount);";
+        ($EntryPrice, $ExitPrice, $StopLoss, $TakeProfit, $EntryTime, $ExitTime, $Profit, $ProfitPercentage, $IsWin, $Size, $RiskAmount, $RewardAmount,$Guid);";
 
                
                 command.Parameters.AddWithValue("$EntryPrice", trade.EntryPrice);
@@ -163,16 +173,59 @@ namespace StockTradeBot.Api
                 command.Parameters.AddWithValue("$Size", trade.Size);
                 command.Parameters.AddWithValue("$RiskAmount", trade.RiskAmount);
                 command.Parameters.AddWithValue("$RewardAmount", trade.RewardAmount);
+                var newGuid = Guid.NewGuid();
+                Console.WriteLine($"Generated Guid: {newGuid}");
+                command.Parameters.AddWithValue("$Guid", newGuid.ToString());
 
                 
                 await command.ExecuteNonQueryAsync();
                 return Results.Ok("Trade added.");
             });
 
-            
-            // edytowanie trade
 
-           
+            app.MapGet("trades/{id}", async (Guid id) =>
+            {
+                using (var connection = new SqliteConnection(_connectionString))
+                {
+                   var command = connection.CreateCommand();
+                   command.CommandText = @" Select * from Trades where id=@id";
+                    command.Parameters.AddWithValue("@id", id);
+                   using (var reader = await command.ExecuteReaderAsync())
+                   {
+                       if (await reader.ReadAsync())
+                       {
+                           var trade = new Trade
+                           {
+                               Guid = reader.GetGuid(reader.GetOrdinal("Guid")), // Zakładamy, że kolumna nazywa się "Id"
+                               EntryPrice = reader.GetDecimal(reader.GetOrdinal("EntryPrice")),
+                               ExitPrice = reader.GetDecimal(reader.GetOrdinal("ExitPrice")),
+                               StopLoss = reader.GetDecimal(reader.GetOrdinal("StopLoss")),
+                               TakeProfit = reader.GetDecimal(reader.GetOrdinal("TakeProfit")),
+                               EntryTime = reader.GetDateTime(reader.GetOrdinal("EntryTime")),
+                               ExitTime = reader.GetDateTime(reader.GetOrdinal("ExitTime")),
+                               Profit = reader.GetDecimal(reader.GetOrdinal("Profit")),
+                               ProfitPercentage = reader.GetDecimal(reader.GetOrdinal("ProfitPercentage")),
+                               IsWin = reader.GetBoolean(reader.GetOrdinal("IsWin")),
+                               Size = reader.GetDecimal(reader.GetOrdinal("Size")),
+                               RiskAmount = reader.GetDecimal(reader.GetOrdinal("RiskAmount")),
+                               RewardAmount = reader.GetDecimal(reader.GetOrdinal("RewardAmount")),
+                               Leverage = reader.GetDecimal(reader.GetOrdinal("Leverage")),
+                               StopLossPercentage = reader.GetDecimal(reader.GetOrdinal("StopLossPercentage")),
+                               TakeProfitPercentage = reader.GetDecimal(reader.GetOrdinal("TakeProfitPercentage"))
+                           };
+
+                           return Results.Json(trade);
+                           
+                       }
+                       else
+                       {
+                           return Results.Problem("Not found.");
+                       }
+                   }
+                } 
+            });
+
+
         }
 
 
